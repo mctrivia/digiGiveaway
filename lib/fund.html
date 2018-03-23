@@ -1,0 +1,143 @@
+<html>
+	<head>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+		<script src="min.js"></script>
+		<script>
+$(function() {
+	var fee=10000;
+
+
+
+
+	//generate pay request window
+	$(document).on("click","#genQR",function() {
+		//load input and validate it is json
+		var data=JSON.parse($("#data").val());
+		
+		//calculate amount needed
+		var dgb=fee*data.length/100000000;
+		for (var wallet of data) {
+			dgb+=wallet["value"];
+		}
+		$("#value").html(dgb);
+	
+		//generate temp wallet
+		var digibyte=require('digibyte');
+		var privateKey=new digibyte.PrivateKey();
+		var tempWallet=privateKey.toAddress();
+		tempWalletAddress=tempWallet.toString();
+		var qrcode=new QRCode(document.getElementById("qr"),{
+			text:	'digibyte:'+tempWalletAddress+'?amount='+dgb,
+			width:	200,
+			height:	200,
+			colorDark:	"#000000",
+			colorLight:	"#ffffff",
+			correctLevel:	QRCode.CorrectLevel.L
+		});
+
+		//show pay window
+		$("#pay").show();
+	
+		//watch temp wallet for payment
+		var keepChecking=setInterval(function() {
+			$.getJSON("https://digiexplorer.info/api/addr/"+tempWalletAddress,function(checkData) {
+				var balance=checkData["balance"];
+				
+				if (balance>=dgb) {									
+					//delete interval
+					clearInterval(keepChecking);
+					
+					//convert units to shatoa
+					balance=Math.round(balance*100000000);
+					dgb=Math.round(dgb*100000000);
+					
+					//generate list of those that need to be payed and how much
+					var toBePayed=[];	//format [wallet,dgb-fee]
+					for (var wallet of data) {
+						toBePayed.push([digibyte.Address.fromString(wallet["pub"]),wallet["value"]]);
+					}
+					
+					//get utxos
+					$.getJSON("https://digiexplorer.info/api/addr/"+tempWalletAddress+"/utxo",function(utxos) {
+			
+						//initialize transaction
+						var transaction=new digibyte.Transaction()
+							.from(utxos)
+							.change(digibyte.Address.fromString('DMw9wz6KHsvbvXsmo1Q8BajWcohYwjqwoq'));	//dust wallet.  goes towards maintenance costs
+						
+						//set all that need to get payed
+						for (var to of toBePayed) {
+							transaction.to(to[0],to[1])
+						}
+						
+						//set max transaction cost.  If api calculates lower then remainder goes to dust wallet to help with server costs
+						if (transaction.getFee()>toBePayed.length*fee) {
+							transaction.fee(Math.floor(toBePayed.length*fee));
+						}
+						
+						//sign transaction
+						transaction.sign(privateKey);
+						
+						//make transaction
+						$.ajax({
+							"type":			"POST",
+							"url":			"https://digiexplorer.info/api/tx/send",
+							"crossDomain":	true,
+							"contentType":	"application/json",
+							"data":			JSON.stringify({
+								"rawtx":	transaction.serialize(),									
+							}),
+							"success":		function() {
+								//show thank you page
+								$("#pay").hide();
+								$("#good").show();
+							},
+							"error":		function() {
+								//error handling.  Need to make better but works for now
+								console.log("something want wrong private key to recover funds is: " + console.log(privateKey.toString()));
+							},
+						});
+					});							
+					
+					
+				}
+				
+			});	
+			
+		},15000);
+	
+	
+	
+	});
+
+
+});		
+		</script>
+		<style>
+			#pay{
+				display:none;
+			}
+			
+			#data{
+				width:		500px;
+				height:		400px;
+			}
+			#good{
+				display: none;
+			}
+		</style>
+	</head>
+	<body>
+		Past data here to fund:<br>
+		<textarea id="data"></textarea>
+		<input type="button" id="genQR" value="Generate Payment Request">
+		<div id="pay">
+			<hr>
+			<h1>Please send <span id="value"></span>DGB to here:</h1>
+			<div id="qr"></div>
+		</div>
+		<div id="good">
+			<h1>All wallets funded successfully</h1>		
+		</div>
+	</body>
+</div>

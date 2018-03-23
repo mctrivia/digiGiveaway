@@ -1,0 +1,324 @@
+<html>
+	<head>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+		<script src="min.js"></script>
+		<script>
+var drawPage;
+/*
+makePage([
+	{
+		"value":	number of digibyte to put in,
+		"style":	template style to use
+		"face":		"front" or "back"
+	},
+	wallet 2,
+	wallet 3...
+]);
+*/ 
+$(function() {
+	//public variables
+	var fee=10000;
+	var digibyte=require('digibyte');
+	var canvas=$("#page")[0];
+	var ctx=canvas['getContext']('2d');
+	var wallets=[];
+	var cost=0;
+	
+	
+	//array draw function
+	var arrayDraw=function(array) {
+		var commands=[
+				'lineTo','moveTo',													//(2 vars)
+				'transform','bezierCurveTo','arc',									//(6 vars)
+				'save','restore','beginPath','closePath','stroke','fill',			//()
+				'fillStyle','strokeStyle','lineWidth','miterLimit','font',			//=	
+				'rect'																//(4 vars)
+			];
+		for (var i of array) {
+			var commandNum=i[0];
+			var command=commands[commandNum];
+			if (commandNum<2) {
+				ctx[command](i[1],i[2]);
+			} else if (commandNum<5) {
+				ctx[command](i[1],i[2],i[3],i[4],i[5],i[6]);				
+			} else if (commandNum<11) {
+				ctx[command]();				
+			} else if (commandNum<16){
+				ctx[command]=i[1];
+			} else {
+				ctx[command](i[1],i[2],i[3],i[4]);
+			}
+		}		
+	}
+	
+	
+	
+	
+	
+	/*
+	
+0			'lineTo',
+1			'moveTo',
+2			'transform',
+3			'bezierCurveTo',
+4			'arc',
+5			'save',
+6			'restore',
+7			'beginPath',
+8			'closePath',
+9			'stroke',
+10			'fill',
+11			'fillStyle',
+12			'strokeStyle',
+13			'lineWidth',
+14			'miterLimit',
+15			'font'	
+16			'rect'	
+	
+	
+[[12,"#000000"],[13,3],[7],[1,6,15],[0,509,15],[0,509,49],[0,692,49],[0,845,21],[0,873,49],[0,873,234],[0,845,262],[0,692,234],[0,509,234],[0,509,268],[0,6,268],[8],[9]]
+	
+	
+	
+	*/
+	var afterLoad=function(config) {
+		//set canvas dimension
+		var width=config["wallet"]["x"]*config["page"]["x"];
+		var height=config["wallet"]["y"]*config["page"]["y"];
+		canvas['width']=width;
+		canvas['height']=height;
+
+	
+		//draw wallet function
+		var drawWallet=function(sConfig) {			//sConfig-current style settings,
+			//generate wallet
+			var privateKey=new digibyte.PrivateKey();
+			var pub=privateKey.toAddress().toString();
+			var pri=privateKey.toWIF();
+			
+			//draw bar codes
+			if (sConfig["qr_public"]!=false) {
+				var qrPub=new QRCode(document.getElementById("qr_pub"),{
+					text:	'digibyte:'+pub,
+					width:	sConfig["qr_public"]["w"],
+					height:	sConfig["qr_public"]["w"],
+					colorDark:	"#000000",
+					colorLight:	"#ffffff",
+					correctLevel:	QRCode.CorrectLevel.L
+				});
+				ctx.drawImage($("#qr_pub canvas")[0],sConfig["qr_public"]["x"],sConfig["qr_public"]["y"]);
+				$("#qr_pub").html('');
+			}
+			var qrPRI=new QRCode(document.getElementById("qr_pri"),{
+				text:	pri,
+				width:	sConfig["qr_private"]["w"],
+				height:	sConfig["qr_private"]["w"],
+				colorDark:	"#000000",
+				colorLight:	"#ffffff",
+				correctLevel:	QRCode.CorrectLevel.L
+			});
+			ctx.drawImage($("#qr_pri canvas")[0],sConfig["qr_private"]["x"],sConfig["qr_private"]["y"]);
+			$("#qr_pri").html('');
+			
+			//draw printed address
+			var drawText=function(value,type) {
+				ctx["save"]();
+				ctx["rotate"](sConfig[type]["rotate"]*Math.PI/2);
+				ctx["font"]=sConfig[type]["front"];
+				ctx["fillStyle"]=sConfig[type]["color"];
+				ctx["textAlign"]=sConfig[type]["align_h"];
+				ctx["textBaseline"]=sConfig[type]["align_v"];
+				ctx["fillText"](value,sConfig[type]["x"],sConfig[type]["y"]);
+				ctx["restore"]();			
+			}
+			if (sConfig["address_public"]!=false) drawText(pub,"address_public");
+			drawText(pri,"address_private");
+			
+			return pub;
+		}
+		
+		//draw wallets on page
+		drawPage=function(settings) {
+			var i=0;
+			
+		
+			ctx["clearRect"](0,0,width,height);
+			outerLoop:	//label for breaking
+			for (var ix=0;ix<config["page"]["x"];ix++) {
+				for (var iy=0;iy<config["page"]["y"];iy++) {
+					//see if wallet going in spot
+					if (typeof settings[i]!="object") break outerLoop;	//no more wallets so break
+					
+					//get style config
+					var sConfig=config["styles"][settings[i]["style"]];
+					var x=ix*config["wallet"]["x"];
+					var y=iy*config["wallet"]["y"];
+					var face=settings[i]["face"];
+					var value=settings[i]["value"];
+
+					ctx["save"]();																	//save so we can shift back
+					ctx["transform"](1,0,0,1,x,y);	//shift area we are working in
+							
+					//draw front or back image
+					if (Array.isArray(sConfig[face])) {
+						arrayDraw(sConfig[face]);
+					} else {				
+						ctx.drawImage(sConfig[face], 0, 0);
+					}
+					if (face=="front") {
+						var pub=drawWallet(sConfig,value);	
+						wallets.push({
+							"value":value,
+							"pub":pub
+						});
+						cost+=value+fee/100000000;
+					}	
+					
+					//shift section back
+					ctx["restore"]();
+						
+					//update counter for next settings
+					i++;
+				}
+			}
+			
+			//create image object out of canvas
+			$("#"+settings[0]["face"]).append('<img class="page" src="'+canvas.toDataURL("image/jpg")+'">');
+					
+		}
+		
+		$(document).on("click","#generate",function() {
+			//generate front
+			var perPage=config["page"]["x"]*config["page"]["y"];
+			var q=parseInt($("#wallet_q").val());
+			var v=parseFloat($("#wallet_v").val());
+			var s=$("#wallet_s").val();
+			while (q>0) {
+				var settings=[];
+				for (var i=0;i<perPage;i++) {
+					//update counter				
+					q--;
+					if (q<0) break;									//exits for loop and imedietly jumps to drawPage
+					
+					//add page
+					settings.push({
+						"value":	v,
+						"style":	s,
+						"face":		"front"
+					})
+				}
+				drawPage(settings);		//draws page and then when done will draw next.
+			} 
+			
+			//all done
+			$("#data").val(JSON.stringify(wallets));
+				
+			//show cost
+			$("#cost").html(cost.toFixed(8));
+						
+			//generate back
+			settings=[];
+			for (var i=0;i<perPage;i++) {
+				settings.push({
+					"value":	v,
+					"style":	s,
+					"face":		"back"
+				})
+			}
+			drawPage(settings);			
+		
+		});
+		
+		//watch for print requests
+		$(document).on("click",".print",function() {
+			$(".pages").hide();							//hide front and backs
+			$("#"+$(this).data("face")).show();			//show requested(fronts or backs)
+			window.print();								//print
+			$(".pages").show();							//show fronts and backs
+		});
+		
+		//watch for clear request
+		$(document).on("click","#clear",function() {
+			$(".pages").html('');
+		});
+	
+	} 
+	
+	
+	
+	
+	
+	
+	/* *************************************
+	*    Download and open config file     *
+	************************************* */
+	$.getJSON('config.json',function(config) {	
+		//pre process styles
+		var waiting=1;												//set that we are looking for 1 more check then files to be loaded
+		var checkAllLoaded=function() {								//checks if all images have been loaded
+			waiting--;												//mark down that we loaded an image
+			if (waiting==0) afterLoad(config);						//if all loaded then start main program
+		}
+		var loadImage=function(key,face) {							//loads an image from config file
+			if (typeof config["styles"][key][face]=="string") {		//see if we even need to load an image
+				var image = new Image();							//creates an image object
+				image.onload = function() {							//fires once image is loaded(may be out of order)
+					config["styles"][key][face]=image;				//save loaded image over string
+					checkAllLoaded();								//see if done loading
+				};
+				image.src =	config["styles"][key][face];			//provides code of image to image object
+				waiting++;											//add an image to wait list
+			}
+		}
+		for (var key in config["styles"]) {							//try to each style
+			$("#wallet_s").append('<option value="'+key+'">'+config["styles"][key]["name"]+'</option>');		//add option to user menu
+			loadImage(key,"front");									//try to load image for front of wallet 
+			loadImage(key,"back");									//try to load image for back of wallet
+		}
+		checkAllLoaded();											//check if all images loaded(if all images loaded synchronously this will catch)
+	});
+});		
+		
+		
+		</script>
+		<style>
+			.hidden{
+				display:	none;
+			}
+			#data{
+				width:		500px;
+				height:		400px;
+			}
+			
+			@media print {
+				.page{page-break-after: always;}
+				.no_print{display: none;}
+			}
+		</style>
+	</head>
+	<body>
+		<div class="no_print">
+			<h1>Cost: <span id="cost">0</span>DGB</h1>
+			<table border="0">
+				<tr><td>Number of wallets:</td><td><input type="number" id="wallet_q"></td></tr>
+				<tr><td>Wallet amount:</td><td><input type="number" id="wallet_v">DGB</td></tr>
+				<tr><td>Wallet style:</td><td><select id="wallet_s"></select></td></tr>
+				<tr><td></td><td><input type="button" id="generate" value="Generate Recommended to Do Offline"></td></tr>
+			</table><br>
+			<input type="button" class="print" data-face="front" value="Print Wallet Fronts"><input type="button" class="print" data-face="back" value="Print Wallet Backs"><br>
+			<input type="button" id="clear" value="Destroy Wallets(press after printing)">
+			<hr>
+			To transfer funds to wallets cut and past the below data into <a href="fund.html">this page</a>
+			<textarea id="data"></textarea>	
+			<canvas id="page" class="hidden"></canvas>
+			<div id="qr_pub" class="hidden"></div>
+			<div id="qr_pri" class="hidden"></div>		
+		</div>
+		
+		
+		<div class="no_print"><h1>Fronts:</h1></div>
+		<div id="front" class="pages"></div>
+		<div class="no_print"><h1>Backs:</h1></div>
+		<div id="back" class="pages"></div>
+	</body>
+</div>
