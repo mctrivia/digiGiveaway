@@ -1,17 +1,9 @@
 # digiGiveaway
 app to generate and populate large number of digibyte wallets
 
-  _____              _     _    _          
- |  __ \            | |   | |  | |         
- | |  | | ___  _ __ | |_  | |  | |___  ___ 
- | |  | |/ _ \| '_ \| __| | |  | / __|/ _ \
- | |__| | (_) | | | | |_  | |__| \__ \  __/
- |_____/ \___/|_| |_|\__|  \____/|___/\___|
- There is a bug in the wallet populator
-
 Currently only functional for single sided prints since back sides don't line up.
 
-Costs 0.0001DGB/wallet.  Most of this money goes to miners to transfer funds.  If any is left over it goes in my dust wallet for future development.
+Costs 0.001DGB+0.0001DGB/wallet.  Caused errors when I didn't have 0.001DGB portion.
 
 Operation:
 1) Download code onto your own computer.
