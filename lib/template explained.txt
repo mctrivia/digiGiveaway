@@ -1,0 +1,52 @@
+[
+	{
+		"name":		"BLACK",							//name this style goes by	
+		"page":		{
+				"x":	1,								//number of tiles horizontally on a page
+				"y":	4								//number of tiles vertically on a page
+		},
+		"wallet":	{
+				"w":	879,							//wallet width in pixels
+				"h":	283								//wallet height in pixels
+		},
+		"address_public":[{								//false if not printing
+				"x":	26,								//x position
+				"y":	240,							//y position
+				"font":	"7px Arial",					//font size and type  formating: https://www.w3schools.com/tags/canvas_font.asp
+				"align_v":	"top",						//vertical font alignment with x,y position
+				"align_h":	"left",						//horizontal font alignment with x,y position
+				"color":	"#0000FF",					//font color	either 		"#RRGGBB"		or		"RGBA(r,g,b,a)"			*RR,GG,BB are hex color value.  r,g,b are decimal color value.  a is value from 0 to 1 for transparency level
+				"rotate":	0							//0=horizontal	1=rotated clockwise 90degrees	2=upside down	3=rotated counter clockwise 90 degrees.   decimal values accepted I.E.  0.5=45deg
+		},{
+		second place and way to print the address optional
+		}]
+		,
+		"qr_public":{									//set to false if don't want a public address shown(good for random prize draws)
+				"x":	30,								//x position of top left corner of public qr code
+				"y":	104,							//y position of top left corner of public qr code
+				"w":	80								//width of public qr code(is a square so height assumed to be width)
+		},
+		"address_private":[{							//false if not printing
+				"x":	686,							//x position
+				"y":	213,							//y position
+				"font":	"7px Arial",					//font size and type  formating: https://www.w3schools.com/tags/canvas_font.asp
+				"align_v":	"top",						//vertical font alignment with x,y position
+				"align_h":	"center",					//horizontal font alignment with x,y position
+				"color":	"#000000",					//font color	either 		"#RRGGBB"		or		"RGBA(r,g,b,a)"			*RR,GG,BB are hex color value.  r,g,b are decimal color value.  a is value from 0 to 1 for transparency level
+				"rotate":	0							//0=horizontal	1=rotated clockwise 90degrees	2=upside down	3=rotated counter clockwise 90 degrees.   decimal values accepted I.E.  0.5=45deg
+		},
+		{
+			second place and way to print the address optional		
+		}]				,
+		"qr_private":{
+				"x":	300,							//x position of top left corner of private qr code
+				"y":	10,								//y position of top left corner of private qr code
+				"w":	100								//width of private qr code(is a square so height assumed to be width)
+		},
+		"front":	[],									//front image data.  either in canvas array format or string containing file name
+		"back":		[]									//back image data.  either in canvas array format or string containing file name
+	},
+	{second style},
+	{third style},
+	...
+]

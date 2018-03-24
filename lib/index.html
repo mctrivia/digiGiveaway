@@ -82,11 +82,6 @@ $(function() {
 	
 	*/
 	var afterLoad=function(config) {
-		//set canvas dimension
-		var width=config["wallet"]["x"]*config["page"]["x"];
-		var height=config["wallet"]["y"]*config["page"]["y"];
-		canvas['width']=width;
-		canvas['height']=height;
 
 	
 		//draw wallet function
@@ -122,14 +117,17 @@ $(function() {
 			
 			//draw printed address
 			var drawText=function(value,type) {
-				ctx["save"]();
-				ctx["rotate"](sConfig[type]["rotate"]*Math.PI/2);
-				ctx["font"]=sConfig[type]["front"];
-				ctx["fillStyle"]=sConfig[type]["color"];
-				ctx["textAlign"]=sConfig[type]["align_h"];
-				ctx["textBaseline"]=sConfig[type]["align_v"];
-				ctx["fillText"](value,sConfig[type]["x"],sConfig[type]["y"]);
-				ctx["restore"]();			
+				for (var textConfig of sConfig[type]) {
+					ctx["save"]();
+					ctx["translate"](textConfig["x"],textConfig["y"]);
+					ctx["rotate"](textConfig["rotate"]*Math.PI/2);
+					ctx["font"]=textConfig["font"];
+					ctx["fillStyle"]=textConfig["color"];
+					ctx["textAlign"]=textConfig["align_h"];
+					ctx["textBaseline"]=textConfig["align_v"];
+					ctx["fillText"](value,0,0);
+					ctx["restore"]();			
+				}
 			}
 			if (sConfig["address_public"]!=false) drawText(pub,"address_public");
 			drawText(pri,"address_private");
@@ -138,21 +136,20 @@ $(function() {
 		}
 		
 		//draw wallets on page
-		drawPage=function(settings) {
+		drawPage=function(styleConfig,settings) {
 			var i=0;
 			
 		
-			ctx["clearRect"](0,0,width,height);
+			ctx["clearRect"](0,0,canvas['width'],canvas['height']);
 			outerLoop:	//label for breaking
-			for (var ix=0;ix<config["page"]["x"];ix++) {
-				for (var iy=0;iy<config["page"]["y"];iy++) {
+			for (var ix=0;ix<styleConfig["page"]["x"];ix++) {
+				for (var iy=0;iy<styleConfig["page"]["y"];iy++) {
 					//see if wallet going in spot
 					if (typeof settings[i]!="object") break outerLoop;	//no more wallets so break
 					
 					//get style config
-					var sConfig=config["styles"][settings[i]["style"]];
-					var x=ix*config["wallet"]["x"];
-					var y=iy*config["wallet"]["y"];
+					var x=ix*styleConfig["wallet"]["x"];
+					var y=iy*styleConfig["wallet"]["y"];
 					var face=settings[i]["face"];
 					var value=settings[i]["value"];
 
@@ -160,13 +157,13 @@ $(function() {
 					ctx["transform"](1,0,0,1,x,y);	//shift area we are working in
 							
 					//draw front or back image
-					if (Array.isArray(sConfig[face])) {
-						arrayDraw(sConfig[face]);
+					if (Array.isArray(styleConfig[face])) {
+						arrayDraw(styleConfig[face]);
 					} else {				
-						ctx.drawImage(sConfig[face], 0, 0);
+						ctx.drawImage(styleConfig[face], 0, 0);
 					}
 					if (face=="front") {
-						var pub=drawWallet(sConfig,value);	
+						var pub=drawWallet(styleConfig,value);	
 						wallets.push({
 							"value":value,
 							"pub":pub
@@ -188,45 +185,75 @@ $(function() {
 		}
 		
 		$(document).on("click","#generate",function() {
-			//generate front
-			var perPage=config["page"]["x"]*config["page"]["y"];
-			var q=parseInt($("#wallet_q").val());
-			var v=Math.round(parseFloat($("#wallet_v").val())*100000000);			//get value in shatoia
-			var s=$("#wallet_s").val();
-			while (q>0) {
-				var settings=[];
-				for (var i=0;i<perPage;i++) {
-					//update counter				
-					q--;
-					if (q<0) break;									//exits for loop and imedietly jumps to drawPage
-					
-					//add page
-					settings.push({
-						"value":	v,
-						"style":	s,
-						"face":		"front"
-					})
-				}
-				drawPage(settings);		//draws page and then when done will draw next.
-			} 
+			//show wait window
+			$(".shadow").show();
 			
-			//all done
-			$("#data").val(JSON.stringify(wallets));
+			setTimeout(function() {
+			
+				//get style config
+				var styleConfig=config[$("#wallet_s").val()];
 				
-			//show cost
-			$("#cost").html((cost/100000000).toFixed(8));
+				//change canvas size
+				canvas['width']=styleConfig["wallet"]["x"]*styleConfig["page"]["x"];
+				canvas['height']=styleConfig["wallet"]["y"]*styleConfig["page"]["y"];
+				
+				//function for when done fronts
+				var pagesDone=function() {
+					//all done
+					$("#data").val(JSON.stringify(wallets));
 						
-			//generate back
-			settings=[];
-			for (var i=0;i<perPage;i++) {
-				settings.push({
-					"value":	v,
-					"style":	s,
-					"face":		"back"
-				})
-			}
-			drawPage(settings);			
-		
+					//show cost
+					$("#cost").html((cost/100000000).toFixed(8));
+								
+					//generate back
+					if (styleConfig["back"]!=false) {
+						settings=[];
+						for (var i=0;i<perPage;i++) {
+							settings.push({
+								"value":	v,
+								"face":		"back"
+							})
+						}
+						drawPage(styleConfig,settings);			
+					}
+					
+					//hide wait window
+					$(".shadow").hide();
+				}
+				
+				
+				//generate front
+				var perPage=styleConfig["page"]["x"]*styleConfig["page"]["y"];
+				var q=parseInt($("#wallet_q").val());
+				var v=Math.round(parseFloat($("#wallet_v").val())*100000000);			//get value in shatoia
+				var nextPage=function() {
+					if (q>0) {
+						$("#doneP").html(q);
+						setTimeout(function() {
+							var settings=[];
+							for (var i=0;i<perPage;i++) {
+								//update counter				
+								q--;
+								if (q<0) break;									//exits for loop and imedietly jumps to drawPage
+								
+								//add page
+								settings.push({
+									"value":	v,
+									"face":		"front"
+								})
+							}
+							drawPage(styleConfig,settings);		//draws page and then when done will draw next.
+							
+							nextPage();	
+						},10);		//slight delay to allow updated progress
+					} else {
+						pagesDone();
+					}
+				}
+				nextPage();
+				
+				
+			},10);	//slight delay to allow wait window to load
 		});
 		
 		//watch for print requests
@@ -260,18 +287,18 @@ $(function() {
 			if (waiting==0) afterLoad(config);						//if all loaded then start main program
 		}
 		var loadImage=function(key,face) {							//loads an image from config file
-			if (typeof config["styles"][key][face]=="string") {		//see if we even need to load an image
+			if (typeof config[key][face]=="string") {				//see if we even need to load an image
 				var image = new Image();							//creates an image object
 				image.onload = function() {							//fires once image is loaded(may be out of order)
-					config["styles"][key][face]=image;				//save loaded image over string
+					config[key][face]=image;						//save loaded image over string
 					checkAllLoaded();								//see if done loading
 				};
-				image.src =	config["styles"][key][face];			//provides code of image to image object
+				image.src =	config[key][face];						//provides code of image to image object
 				waiting++;											//add an image to wait list
 			}
 		}
-		for (var key in config["styles"]) {							//try to each style
-			$("#wallet_s").append('<option value="'+key+'">'+config["styles"][key]["name"]+'</option>');		//add option to user menu
+		for (var key in config) {							//try to each style
+			$("#wallet_s").append('<option value="'+key+'">'+config[key]["name"]+'</option>');		//add option to user menu
 			loadImage(key,"front");									//try to load image for front of wallet 
 			loadImage(key,"back");									//try to load image for back of wallet
 		}
@@ -289,6 +316,34 @@ $(function() {
 				width:		500px;
 				height:		400px;
 			}
+			.floatHalf{
+				width:		50%;
+				float:		left;
+				min-width:	400px;
+			}
+			.shadow{
+				position:	fixed;
+				display:	none;
+			}
+			#shadow {
+				z-index:			1000;
+				background-color:	RGBA(0,0,0,0.3);
+				left:		0px;
+				top:		0px;
+				width:		100%;
+				height:		100%;
+			}
+			#wait{
+				z-index:	1001;
+				background-color:	RGBA(255,255,255,1);
+				left:		50%;
+				top:		50%;
+				width:		400px;
+				margin-left:-200px;
+				height:		150px;
+				margin-top:	-75px;
+				text-align:	center;
+			}
 			
 			@media print {
 				.page{page-break-after: always;}
@@ -298,22 +353,28 @@ $(function() {
 	</head>
 	<body>
 		<div class="no_print">
-			<h1>Cost: <span id="cost">0</span>DGB</h1>
-			Fee: 0.001 DGB+0.0001DGB/wallet<br>
-			<table border="0">
-				<tr><td>Number of wallets:</td><td><input type="number" id="wallet_q"></td></tr>
-				<tr><td>Wallet amount:</td><td><input type="number" id="wallet_v">DGB</td></tr>
-				<tr><td>Wallet style:</td><td><select id="wallet_s"></select></td></tr>
-				<tr><td></td><td><input type="button" id="generate" value="Generate Recommended to Do Offline"></td></tr>
-			</table><br>
-			<input type="button" class="print" data-face="front" value="Print Wallet Fronts"><input type="button" class="print" data-face="back" value="Print Wallet Backs"><br>
-			<input type="button" id="clear" value="Destroy Wallets(press after printing)">
-			<hr>
-			To transfer funds to wallets cut and past the below data into <a href="fund.html">this page</a>
-			<textarea id="data"></textarea>	
+			<div class="floatHalf">
+				<h1>Cost: <span id="cost">0</span>DGB</h1>
+				Fee: 0.001 DGB+0.0001DGB/wallet<br>
+				<table border="0">
+					<tr><td>Number of wallets:</td><td><input type="number" id="wallet_q"></td></tr>
+					<tr><td>Wallet amount:</td><td><input type="number" id="wallet_v">DGB</td></tr>
+					<tr><td>Wallet style:</td><td><select id="wallet_s"></select></td></tr>
+					<tr><td></td><td><input type="button" id="generate" value="Generate Recommended to Do Offline"></td></tr>
+				</table><br>
+				<input type="button" class="print" data-face="front" value="Print Wallet Fronts"><input type="button" class="print" data-face="back" value="Print Wallet Backs"><br>
+				<input type="button" id="clear" value="Destroy Wallets(press after printing)">
+			</div>
+			<div class="floatHalf">
+				To transfer funds to wallets cut and past the below data into <a href="fund.html">this page</a>
+				<textarea id="data"></textarea>	
+			</div>
 			<canvas id="page" class="hidden"></canvas>
 			<div id="qr_pub" class="hidden"></div>
-			<div id="qr_pri" class="hidden"></div>		
+			<div id="qr_pri" class="hidden"></div>	
+
+			<div id="wait" class="shadow"><h1>Please Wait<br>Generating Wallets</h1><span id="doneP"></span> to go</div>
+			<div id="shadow" class="shadow"></div>
 		</div>
 		
 		
