@@ -15,10 +15,11 @@ $(function() {
 		var data=JSON.parse($("#data").val());
 		
 		//calculate amount needed
-		var dgb=fee*data.length/100000000;
+		var dgbS=fee*data.length+100000;
 		for (var wallet of data) {
-			dgb+=wallet["value"];
+			dgbS+=wallet["value"];
 		}
+		var dgb=(dgbS/100000000).toFixed(8);				//string containing amount in DigiByte
 		$("#value").html(dgb);
 	
 		//generate temp wallet
@@ -34,28 +35,18 @@ $(function() {
 			colorLight:	"#ffffff",
 			correctLevel:	QRCode.CorrectLevel.L
 		});
-
+		
 		//show pay window
 		$("#pay").show();
 	
 		//watch temp wallet for payment
 		var keepChecking=setInterval(function() {
 			$.getJSON("https://digiexplorer.info/api/addr/"+tempWalletAddress,function(checkData) {
-				var balance=checkData["balance"];
+				var balance=checkData["balanceSat"];
 				
-				if (balance>=dgb) {									
+				if (balance>=dgbS) {									
 					//delete interval
-					clearInterval(keepChecking);
-					
-					//convert units to shatoa
-					balance=Math.round(balance*100000000);
-					dgb=Math.round(dgb*100000000);
-					
-					//generate list of those that need to be payed and how much
-					var toBePayed=[];	//format [wallet,dgb-fee]
-					for (var wallet of data) {
-						toBePayed.push([digibyte.Address.fromString(wallet["pub"]),wallet["value"]]);
-					}
+					clearInterval(keepChecking);			
 					
 					//get utxos
 					$.getJSON("https://digiexplorer.info/api/addr/"+tempWalletAddress+"/utxo",function(utxos) {
@@ -66,17 +57,24 @@ $(function() {
 							.change(digibyte.Address.fromString('DMw9wz6KHsvbvXsmo1Q8BajWcohYwjqwoq'));	//dust wallet.  goes towards maintenance costs
 						
 						//set all that need to get payed
-						for (var to of toBePayed) {
-							transaction.to(to[0],to[1])
+var change=balance;
+						for (var wallet of data) {
+							transaction.to(digibyte.Address.fromString(wallet["pub"]),wallet["value"]);
+							console.log(digibyte.Address.fromString(wallet["pub"]),wallet["value"]);
+change-=wallet["value"];
 						}
 						
 						//set max transaction cost.  If api calculates lower then remainder goes to dust wallet to help with server costs
-						if (transaction.getFee()>toBePayed.length*fee) {
-							transaction.fee(Math.floor(toBePayed.length*fee));
+						if (transaction.getFee()>data.length*fee) {
+							transaction.fee(Math.floor(data.length*fee));
 						}
+change-=transaction.getFee();
+						console.log(transaction.getFee());
+						console.log("change:",change);
 						
 						//sign transaction
 						transaction.sign(privateKey);
+						console.log(transaction.serialize());
 						
 						//make transaction
 						$.ajax({
@@ -92,9 +90,10 @@ $(function() {
 								$("#pay").hide();
 								$("#good").show();
 							},
-							"error":		function() {
+							"error":		function(jqXHR,textStatus,errorThrown) {
 								//error handling.  Need to make better but works for now
-								console.log("something want wrong private key to recover funds is: " + console.log(privateKey.toString()));
+								console.log(jqXHR,textStatus,errorThrown);
+								console.log("something want wrong private key to recover funds is: " + console.log(privateKey.toWIF()));
 							},
 						});
 					});							

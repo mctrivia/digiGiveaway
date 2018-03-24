@@ -22,7 +22,7 @@ $(function() {
 	var canvas=$("#page")[0];
 	var ctx=canvas['getContext']('2d');
 	var wallets=[];
-	var cost=0;
+	var cost=100000;	//minimum fee to prevent errors
 	
 	
 	//array draw function
@@ -171,7 +171,7 @@ $(function() {
 							"value":value,
 							"pub":pub
 						});
-						cost+=value+fee/100000000;
+						cost+=value+fee;
 					}	
 					
 					//shift section back
@@ -191,7 +191,7 @@ $(function() {
 			//generate front
 			var perPage=config["page"]["x"]*config["page"]["y"];
 			var q=parseInt($("#wallet_q").val());
-			var v=parseFloat($("#wallet_v").val());
+			var v=Math.round(parseFloat($("#wallet_v").val())*100000000);			//get value in shatoia
 			var s=$("#wallet_s").val();
 			while (q>0) {
 				var settings=[];
@@ -214,7 +214,7 @@ $(function() {
 			$("#data").val(JSON.stringify(wallets));
 				
 			//show cost
-			$("#cost").html(cost.toFixed(8));
+			$("#cost").html((cost/100000000).toFixed(8));
 						
 			//generate back
 			settings=[];
@@ -299,6 +299,7 @@ $(function() {
 	<body>
 		<div class="no_print">
 			<h1>Cost: <span id="cost">0</span>DGB</h1>
+			Fee: 0.001 DGB+0.0001DGB/wallet<br>
 			<table border="0">
 				<tr><td>Number of wallets:</td><td><input type="number" id="wallet_q"></td></tr>
 				<tr><td>Wallet amount:</td><td><input type="number" id="wallet_v">DGB</td></tr>
