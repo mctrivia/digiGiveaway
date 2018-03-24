@@ -91,9 +91,24 @@ change-=transaction.getFee();
 								$("#good").show();
 							},
 							"error":		function(jqXHR,textStatus,errorThrown) {
+								var wif=privateKey.toWIF();
+							
 								//error handling.  Need to make better but works for now
 								console.log(jqXHR,textStatus,errorThrown);
-								console.log("something want wrong private key to recover funds is: " + console.log(privateKey.toWIF()));
+								console.log("something want wrong private key to recover funds is: " + wif);
+								
+								
+								$("#failqr").html('');
+								var qrcode=new QRCode(document.getElementById("failqr"),{
+									text:	wif,
+									width:	200,
+									height:	200,
+									colorDark:	"#000000",
+									colorLight:	"#ffffff",
+									correctLevel:	QRCode.CorrectLevel.L
+								});
+								$(".shadow").show();
+								
 							},
 						});
 					});							
@@ -124,6 +139,31 @@ change-=transaction.getFee();
 			#good{
 				display: none;
 			}
+			
+			
+			.shadow{
+				position:	fixed;
+				display:	none;
+			}
+			#shadow {
+				z-index:			1000;
+				background-color:	RGBA(0,0,0,0.3);
+				left:		0px;
+				top:		0px;
+				width:		100%;
+				height:		100%;
+			}
+			#error{
+				z-index:	1001;
+				background-color:	RGBA(255,255,255,1);
+				left:		50%;
+				top:		50%;
+				width:		400px;
+				margin-left:-200px;
+				height:		400px;
+				margin-top:	-200px;
+				text-align:	center;
+			}
 		</style>
 	</head>
 	<body>
@@ -138,5 +178,8 @@ change-=transaction.getFee();
 		<div id="good">
 			<h1>All wallets funded successfully</h1>		
 		</div>
+		<div id="error" class="shadow"><h3>Payment transfer failed:  You can recover funds with this</h3><div id="failqr"></div></div>
+		<div id="shadow" class="shadow"></div>
+
 	</body>
 </div>
