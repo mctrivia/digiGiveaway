@@ -4,7 +4,6 @@
 		<script src="min.js"></script>
 		<script>
 $(function() {
-	var fee=10000;
 
 
 
@@ -15,7 +14,7 @@ $(function() {
 		var data=JSON.parse($("#data").val());
 		
 		//calculate amount needed
-		var dgbS=fee*data.length+100000;
+		var dgbS=150000;
 		for (var wallet of data) {
 			dgbS+=wallet["value"];
 		}
@@ -44,6 +43,8 @@ $(function() {
 			$.getJSON("https://digiexplorer.info/api/addr/"+tempWalletAddress,function(checkData) {
 				var balance=checkData["balanceSat"];
 				
+				$("#value").html(((dgbS-balance)/100000000).toFixed(8));
+				
 				if (balance>=dgbS) {									
 					//delete interval
 					clearInterval(keepChecking);			
@@ -54,23 +55,13 @@ $(function() {
 						//initialize transaction
 						var transaction=new digibyte.Transaction()
 							.from(utxos)
-							.change(digibyte.Address.fromString('DMw9wz6KHsvbvXsmo1Q8BajWcohYwjqwoq'));	//dust wallet.  goes towards maintenance costs
+							.change(digibyte.Address.fromString('DMw9wz6KHsvbvXsmo1Q8BajWcohYwjqwoq'))	//dust wallet.  goes towards maintenance costs
+							.fee(70000);	
 						
 						//set all that need to get payed
-var change=balance;
 						for (var wallet of data) {
 							transaction.to(digibyte.Address.fromString(wallet["pub"]),wallet["value"]);
-							console.log(digibyte.Address.fromString(wallet["pub"]),wallet["value"]);
-change-=wallet["value"];
 						}
-						
-						//set max transaction cost.  If api calculates lower then remainder goes to dust wallet to help with server costs
-						if (transaction.getFee()>data.length*fee) {
-							transaction.fee(Math.floor(data.length*fee));
-						}
-change-=transaction.getFee();
-						console.log(transaction.getFee());
-						console.log("change:",change);
 						
 						//sign transaction
 						transaction.sign(privateKey);

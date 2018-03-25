@@ -17,12 +17,11 @@ makePage([
 */ 
 $(function() {
 	//public variables
-	var fee=10000;
 	var digibyte=require('digibyte');
 	var canvas=$("#page")[0];
 	var ctx=canvas['getContext']('2d');
 	var wallets=[];
-	var cost=100000;	//minimum fee to prevent errors
+	var cost=150000;	//minimum fee to prevent errors
 	
 	
 	//array draw function
@@ -168,7 +167,6 @@ $(function() {
 							"value":value,
 							"pub":pub
 						});
-						cost+=value+fee;
 					}	
 					
 					//shift section back
@@ -240,7 +238,10 @@ $(function() {
 								settings.push({
 									"value":	v,
 									"face":		"front"
-								})
+								});
+								
+								//update cost
+								cost+=v;
 							}
 							drawPage(styleConfig,settings);		//draws page and then when done will draw next.
 							
@@ -355,7 +356,7 @@ $(function() {
 		<div class="no_print">
 			<div class="floatHalf">
 				<h1>Cost: <span id="cost">0</span>DGB</h1>
-				Fee: 0.001 DGB+0.0001DGB/wallet<br>
+				Fee: 0.0015 DGB<br>
 				<table border="0">
 					<tr><td>Number of wallets:</td><td><input type="number" id="wallet_q"></td></tr>
 					<tr><td>Wallet amount:</td><td><input type="number" id="wallet_v">DGB</td></tr>
