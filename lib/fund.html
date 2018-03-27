@@ -15,17 +15,17 @@ $(function() {
 		
 		//calculate amount needed
 		var dgbS=150000;
+		var feePerWallet=150;
 		for (var wallet of data) {
-			dgbS+=wallet["value"];
+			dgbS+=(wallet["value"]+feePerWallet);
 		}
 		var dgb=(dgbS/100000000).toFixed(8);				//string containing amount in DigiByte
 		$("#value").html(dgb);
 	
 		//generate temp wallet
 		var digibyte=require('digibyte');
-		var privateKey=new digibyte.PrivateKey();
-		var tempWallet=privateKey.toAddress();
-		tempWalletAddress=tempWallet.toString();
+		var nextPrivateKey=new digibyte.PrivateKey();
+		tempWalletAddress=nextPrivateKey.toAddress().toString();
 		var qrcode=new QRCode(document.getElementById("qr"),{
 			text:	'digibyte:'+tempWalletAddress+'?amount='+dgb,
 			width:	200,
@@ -38,81 +38,110 @@ $(function() {
 		//show pay window
 		$("#pay").show();
 	
-		//watch temp wallet for payment
-		var keepChecking=setInterval(function() {
-			$.getJSON("https://digiexplorer.info/api/addr/"+tempWalletAddress,function(checkData) {
-				var balance=checkData["balanceSat"];
-				
-				$("#value").html(((dgbS-balance)/100000000).toFixed(8));
-				
-				if (balance>=dgbS) {									
-					//delete interval
-					clearInterval(keepChecking);			
+	
+						
+		//do 1000 transactions at a time
+		var dataS=0;
+		var block=function() {
+
+		
+			//watch temp wallet for payment
+			var keepChecking=setInterval(function() {
+				$.getJSON("https://digiexplorer.info/api/addr/"+tempWalletAddress,function(checkData) {
+					var balance=checkData["balanceSat"];
 					
-					//get utxos
-					$.getJSON("https://digiexplorer.info/api/addr/"+tempWalletAddress+"/utxo",function(utxos) {
-			
-						//initialize transaction
-						var transaction=new digibyte.Transaction()
-							.from(utxos)
-							.change(digibyte.Address.fromString('DMw9wz6KHsvbvXsmo1Q8BajWcohYwjqwoq'))	//dust wallet.  goes towards maintenance costs
-							.fee(70000);	
+					if (dgbS!=1) $("#value").html(((dgbS-balance)/100000000).toFixed(8));
+					
+					if (balance>=dgbS) {									
+						//delete interval
+						clearInterval(keepChecking);			
 						
-						//set all that need to get payed
-						for (var wallet of data) {
-							transaction.to(digibyte.Address.fromString(wallet["pub"]),wallet["value"]);
-						}
 						
-						//sign transaction
-						transaction.sign(privateKey);
-						console.log(transaction.serialize());
-						
-						//make transaction
-						$.ajax({
-							"type":			"POST",
-							"url":			"https://digiexplorer.info/api/tx/send",
-							"crossDomain":	true,
-							"contentType":	"application/json",
-							"data":			JSON.stringify({
-								"rawtx":	transaction.serialize(),									
-							}),
-							"success":		function() {
-								//show thank you page
-								$("#pay").hide();
-								$("#good").show();
-							},
-							"error":		function(jqXHR,textStatus,errorThrown) {
-								var wif=privateKey.toWIF();
+						//get utxos
+						$.getJSON("https://digiexplorer.info/api/addr/"+tempWalletAddress+"/utxo",function(utxos) {
+				
+							//initialize transaction
+							var transaction=new digibyte.Transaction()
+								.from(utxos)
+								.fee(70000);	
 							
-								//error handling.  Need to make better but works for now
-								console.log(jqXHR,textStatus,errorThrown);
-								console.log("something want wrong private key to recover funds is: " + wif);
+							//set all that need to get payed
+							var dataE=Math.min(dataS+1000,data.length);
+							for (var i=dataS;i<dataE;i++) {
+								transaction.to(digibyte.Address.fromString(data[i]["pub"]),data[i]["value"]);
+							}
+							dataS=dataE;
+							
+							//send change to new address if not last block.
+							var privateKey=nextPrivateKey;
+							if (dataS==data.length) {
+								transaction.change(digibyte.Address.fromString('DMw9wz6KHsvbvXsmo1Q8BajWcohYwjqwoq'))	//dust wallet.  goes towards maintenance costs
+							} else {
+								//create new private key for change
+								nextPrivateKey=new digibyte.PrivateKey();
+								tempWalletAddress=nextPrivateKey.toAddress().toString();
 								
+								//send change to new wallet
+								transaction.change(tempWallet);
+							}
+							
+							//sign transaction
+							transaction.sign(privateKey);
+							console.log(transaction.serialize());
+							
+							//make transaction
+							$.ajax({
+								"type":			"POST",
+								"url":			"https://digiexplorer.info/api/tx/send",
+								"crossDomain":	true,
+								"contentType":	"application/json",
+								"data":			JSON.stringify({
+									"rawtx":	transaction.serialize(),									
+								}),
+								"success":		function() {
+									if (dataS==data.length) {
+										//show thank you page
+										$("#pay").hide();
+										$("#good").show();
+									} else {
+										//do next block
+										dgbS=1;			//we already know there is enough so just look for value to be greater then 0
+										block();
+									}
+								},
+								"error":		function(jqXHR,textStatus,errorThrown) {
+									var wif=privateKey.toWIF();
 								
-								$("#failqr").html('');
-								var qrcode=new QRCode(document.getElementById("failqr"),{
-									text:	wif,
-									width:	200,
-									height:	200,
-									colorDark:	"#000000",
-									colorLight:	"#ffffff",
-									correctLevel:	QRCode.CorrectLevel.L
-								});
-								$(".shadow").show();
-								
-							},
+									//error handling.  Need to make better but works for now
+									console.log(jqXHR,textStatus,errorThrown);
+									console.log("something want wrong private key to recover funds is: " + wif);
+									
+									
+									$("#failqr").html('');
+									var qrcode=new QRCode(document.getElementById("failqr"),{
+										text:			wif,
+										width:			200,
+										height:			200,
+										colorDark:		"#000000",
+										colorLight:		"#ffffff",
+										correctLevel:	QRCode.CorrectLevel.L
+									});
+									$(".shadow").show();
+									
+								},
+							});
 						});
-					});							
 					
+					}
 					
-				}
+				});	
 				
-			});	
+			},15000);
+		
+	
+		}
+		block();
 			
-		},15000);
-	
-	
-	
 	});
 
 

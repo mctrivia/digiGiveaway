@@ -21,8 +21,8 @@ $(function() {
 	var canvas=$("#page")[0];
 	var ctx=canvas['getContext']('2d');
 	var wallets=[];
-	var cost=150000;	//minimum fee to prevent errors
-	
+	var cost=150000;			//minimum fee to prevent errors
+	var feePerWallet=150;		//minimum to prevent errors
 	
 	//array draw function
 	var arrayDraw=function(array) {
@@ -33,6 +33,7 @@ $(function() {
 				'fillStyle','strokeStyle','lineWidth','miterLimit','font',			//=	
 				'rect'																//(4 vars)
 			];
+		ctx["save"]();
 		for (var i of array) {
 			var commandNum=i[0];
 			var command=commands[commandNum];
@@ -48,6 +49,7 @@ $(function() {
 				ctx[command](i[1],i[2],i[3],i[4]);
 			}
 		}		
+		ctx["restore"]();
 	}
 	
 	
@@ -116,16 +118,18 @@ $(function() {
 			
 			//draw printed address
 			var drawText=function(value,type) {
-				for (var textConfig of sConfig[type]) {
-					ctx["save"]();
-					ctx["translate"](textConfig["x"],textConfig["y"]);
-					ctx["rotate"](textConfig["rotate"]*Math.PI/2);
-					ctx["font"]=textConfig["font"];
-					ctx["fillStyle"]=textConfig["color"];
-					ctx["textAlign"]=textConfig["align_h"];
-					ctx["textBaseline"]=textConfig["align_v"];
-					ctx["fillText"](value,0,0);
-					ctx["restore"]();			
+				if (sConfig[type]!=false) {
+					for (var textConfig of sConfig[type]) {
+						ctx["save"]();
+						ctx["translate"](textConfig["x"],textConfig["y"]);
+						ctx["rotate"](textConfig["rotate"]*Math.PI/2);
+						ctx["font"]=textConfig["font"];
+						ctx["fillStyle"]=textConfig["color"];
+						ctx["textAlign"]=textConfig["align_h"];
+						ctx["textBaseline"]=textConfig["align_v"];
+						ctx["fillText"](value,0,0);
+						ctx["restore"]();			
+					}
 				}
 			}
 			if (sConfig["address_public"]!=false) drawText(pub,"address_public");
@@ -139,7 +143,8 @@ $(function() {
 			var i=0;
 			
 		
-			ctx["clearRect"](0,0,canvas['width'],canvas['height']);
+			canvas['width']=canvas['width'];		//clears the canvas
+//			ctx["clearRect"](0,0,canvas['width'],canvas['height']);
 			outerLoop:	//label for breaking
 			for (var ix=0;ix<styleConfig["page"]["x"];ix++) {
 				for (var iy=0;iy<styleConfig["page"]["y"];iy++) {
@@ -163,10 +168,16 @@ $(function() {
 					}
 					if (face=="front") {
 						var pub=drawWallet(styleConfig,value);	
-						wallets.push({
-							"value":value,
-							"pub":pub
-						});
+						if (value>0) {
+							//add wallet to fund list
+							wallets.push({
+								"value":value,
+								"pub":pub
+							});
+								
+							//update cost
+							cost+=(value+feePerWallet);
+						}
 					}	
 					
 					//shift section back
@@ -210,7 +221,7 @@ $(function() {
 							settings.push({
 								"value":	v,
 								"face":		"back"
-							})
+							});
 						}
 						drawPage(styleConfig,settings);			
 					}
@@ -223,7 +234,18 @@ $(function() {
 				//generate front
 				var perPage=styleConfig["page"]["x"]*styleConfig["page"]["y"];
 				var q=parseInt($("#wallet_q").val());
-				var v=Math.round(parseFloat($("#wallet_v").val())*100000000);			//get value in shatoia
+				if (isNaN(q)||(q<=0)) {
+					alert("wallet quantity must be at least 1.");
+					$(".shadow").hide();
+					return;
+				}
+				var v=Math.round(parseFloat($("#wallet_v").val())*100000000)||0;			//get value in shatoia
+				if ((v<8343)&&(v>0)) {
+					alert("minimum wallet ammount is 0.00008343");
+					$(".shadow").hide();
+					return;
+				}
+				
 				var nextPage=function() {
 					if (q>0) {
 						$("#doneP").html(q);
@@ -239,9 +261,6 @@ $(function() {
 									"value":	v,
 									"face":		"front"
 								});
-								
-								//update cost
-								cost+=v;
 							}
 							drawPage(styleConfig,settings);		//draws page and then when done will draw next.
 							
@@ -345,10 +364,29 @@ $(function() {
 				margin-top:	-75px;
 				text-align:	center;
 			}
+			.pageLabel{
+				clear:	both;
+			}
+			H3 {
+				margin-bottom:	0;
+			}
 			
 			@media print {
-				.page{page-break-after: always;}
-				.no_print{display: none;}
+				html, body {
+					padding: 0;
+					margin: 0;
+				}
+				.page{
+					page-break-after: always;
+					width:	100%;
+				}
+				.no_print{
+					display: none;
+				}
+				@page{
+					padding: 0;
+					margin:	1.2cm;
+				}
 			}
 		</style>
 	</head>
@@ -356,15 +394,25 @@ $(function() {
 		<div class="no_print">
 			<div class="floatHalf">
 				<h1>Cost: <span id="cost">0</span>DGB</h1>
-				Fee: 0.0015 DGB<br>
+				Fee: 0.0015 DGB+0.0000015 DGB/wallet<br>
 				<table border="0">
 					<tr><td>Number of wallets:</td><td><input type="number" id="wallet_q"></td></tr>
-					<tr><td>Wallet amount:</td><td><input type="number" id="wallet_v">DGB</td></tr>
+					<tr><td>Wallet amount:</td><td><input type="number" id="wallet_v">DGB(leave blank if not funding)</td></tr>
 					<tr><td>Wallet style:</td><td><select id="wallet_s"></select></td></tr>
 					<tr><td></td><td><input type="button" id="generate" value="Generate Recommended to Do Offline"></td></tr>
 				</table><br>
 				<input type="button" class="print" data-face="front" value="Print Wallet Fronts"><input type="button" class="print" data-face="back" value="Print Wallet Backs"><br>
 				<input type="button" id="clear" value="Destroy Wallets(press after printing)">
+				<br>
+				<h3 id="tutorial">Double Sided Print Tutorial:</h3>
+				<div id="tutorial_data">
+1) Draw a small X next to one of the long edges of the paper.<br>
+2) Print the front of the wallet.<br>
+3) Put the page back in the printer with the x facing down but on the same side of the printer as it was in step 1.<br>
+4) Print the back of the wallet.<br>
+<br>
+Once you know which way to flip and verify it lines up reasonably close you can print off all the front pages(skip first page as you already did it), and then flip the entire stack the same way and print off as many copies of the back as you need.
+				</div>
 			</div>
 			<div class="floatHalf">
 				To transfer funds to wallets cut and past the below data into <a href="fund.html">this page</a>
@@ -379,9 +427,9 @@ $(function() {
 		</div>
 		
 		
-		<div class="no_print"><h1>Fronts:</h1></div>
+		<div class="no_print pageLabel"><h1>Fronts:</h1></div>
 		<div id="front" class="pages"></div>
-		<div class="no_print"><h1>Backs:</h1></div>
+		<div class="no_print pageLabel"><h1>Backs:</h1></div>
 		<div id="back" class="pages"></div>
 	</body>
 </div>
